@@ -217,18 +217,20 @@ class TestDrawingTools:
 # ===========================================================================
 
 class TestElectricalTools:
-    def test_get_symbol_list_all(self):
+    def test_get_symbol_list_all(self, tmp_path, monkeypatch):
         from src.tools.electrical import get_symbol_list
+        monkeypatch.setattr("src.tools.electrical.IEC2_LIBRARY", tmp_path)
+        (tmp_path / "VCR21.dwg").touch()
         result = get_symbol_list()
         assert result["success"] is True
         assert result["count"] > 0
-        assert "WD_NOPEN" in result["symbols"]
+        assert "VCR21" in result["symbols"]
 
     def test_get_symbol_list_filtered(self):
         from src.tools.electrical import get_symbol_list
         result = get_symbol_list("coils")
         assert result["success"] is True
-        assert all("COIL" in s or "WD_" in s for s in result["symbols"])
+        assert set(result["symbols"]) <= {"HCR1", "VCR1"}
 
     def test_get_symbol_list_unknown_category(self):
         from src.tools.electrical import get_symbol_list
@@ -236,13 +238,16 @@ class TestElectricalTools:
         assert result["success"] is True
         assert result["count"] == 0  # no match → empty list
 
-    def test_insert_electrical_symbol_sends_lisp(self, mock_conn):
+    def test_insert_electrical_symbol_com(self, mock_conn, mock_ms, tmp_path, monkeypatch):
         from src.tools.electrical import insert_electrical_symbol
+        monkeypatch.setattr("src.tools.electrical.IEC2_LIBRARY", tmp_path)
+        (tmp_path / "VCR21.dwg").touch()
+        mock_ms.InsertBlock.return_value.Handle = "AB12"
         result = insert_electrical_symbol("WD_NOPEN", 100, 200)
-        # COM send_command should have been called
-        assert mock_conn.send_command.called
-        # Result is either success (if mock block found) or partial success
-        assert "success" in result
+        assert result["success"] is True
+        assert result["handle"] == "AB12"
+        assert mock_ms.InsertBlock.call_args.args[1] == str(tmp_path / "VCR21.dwg")
+        mock_conn.send_command.assert_not_called()
 
     def test_insert_ladder_sends_command(self, mock_conn):
         from src.tools.electrical import insert_ladder

@@ -25,6 +25,7 @@ from typing import Any
 from src.config import get_config
 from src.providers import get_provider
 from src.tools import drawing, drawing3d, electrical, wires, components, reports
+from src.tools import circuits
 from src.tools import project as proj
 from web.backend.state import add_log, add_history
 
@@ -35,6 +36,12 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 TOOL_REGISTRY: dict[str, dict[str, Any]] = {
+    "create_start_stop_circuit": {
+        "func": circuits.create_start_stop_circuit,
+        "description": "Crear circuito marcha-paro IEC2 con paro NC, marcha NA, bobina KM1 y contacto auxiliar NA en paralelo para enclavamiento, unidos por conductores.",
+        "params": {"x": "float (default 0)", "y": "float (default 0)", "scale": "float (default 1)", "coil_tag": "str (default KM1)"},
+        "category": "Electrical",
+    },
     # ── Drawing ─────────────────────────────────────────────────────────
     "draw_line": {
         "func": drawing.draw_line,

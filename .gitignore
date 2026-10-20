@@ -45,6 +45,8 @@ share/python-wheels/
 
 # ── Testing & coverage ───────────────────────────────────────────────────────
 .pytest_cache/
+.test-deps/
+.catalog-test-deps/
 .coverage
 .coverage.*
 htmlcov/
@@ -90,3 +92,5 @@ models/
 [Dd]esktop.ini
 $RECYCLE.BIN/
 *.lnk
+
+artifacts/

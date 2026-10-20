@@ -53,7 +53,7 @@ class AutoCADConnection:
 
     def __init__(
         self,
-        com_object: str = "AutoCAD.Application",
+        com_object: str = "AutoCAD.Application.24.2",
         timeout: int = 30,
     ) -> None:
         self._com_object = com_object
@@ -261,7 +261,7 @@ _connection_instance: AutoCADConnection | None = None
 
 
 def get_connection(
-    com_object: str = "AutoCAD.Application",
+    com_object: str = "AutoCAD.Application.24.2",
     timeout: int = 30,
     auto_connect: bool = True,
 ) -> AutoCADConnection:

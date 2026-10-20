@@ -22,7 +22,7 @@ providers:
     api_key: lm-studio
 autocad:
   timeout: 30
-  com_object: AutoCAD.Application
+  com_object: AutoCAD.Application.24.2
 mcp:
   server_name: autocad-electrical-mcp
   server_version: 1.0.0

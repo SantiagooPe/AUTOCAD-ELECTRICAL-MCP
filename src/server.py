@@ -73,7 +73,7 @@ mcp = FastMCP(
 def _attempt_autocad_connect() -> None:
     """Try to connect to AutoCAD; log a warning if unavailable."""
     ac_cfg = _cfg.autocad
-    com_obj = ac_cfg.get("com_object", "AutoCAD.Application")
+    com_obj = ac_cfg.get("com_object", "AutoCAD.Application.24.2")
     timeout = int(ac_cfg.get("timeout", 30))
     try:
         conn = get_connection(com_object=com_obj, timeout=timeout, auto_connect=True)
@@ -81,7 +81,7 @@ def _attempt_autocad_connect() -> None:
     except AutoCADConnectionError as exc:
         logger.warning(
             "AutoCAD is not running at startup – tools will return an error "
-            "until AutoCAD Electrical 2025 is launched.\n  %s",
+            "until AutoCAD Electrical 2023 is launched.\n  %s",
             exc,
         )
     except Exception as exc:
@@ -93,6 +93,35 @@ def _attempt_autocad_connect() -> None:
 # ---------------------------------------------------------------------------
 from src.tools import drawing, electrical, wires, components, reports, project
 from src.tools import drawing3d
+from src.tools import circuits
+
+
+@mcp.tool()
+def create_start_stop_circuit(x: float = 0, y: float = 0, scale: float = 1,
+                              coil_tag: str = "KM1") -> dict[str, Any]:
+    """Crear marcha-paro IEC2: paro NC, marcha NA, bobina KM1 y auxiliar NA.
+
+    Inserta cuatro bloques del catálogo semántico y conductores WIRES a sus
+    bornes, con auxiliar en paralelo a marcha. x/y ubican paro; scale escala
+    todo el circuito. Registra WIRES como conductor numerable y actualiza
+    referencias si el dibujo pertenece al proyecto activo. No modifica IEC2.
+    """
+    return circuits.create_start_stop_circuit(x, y, scale, coil_tag)
+
+
+@mcp.tool()
+def update_cross_references(coil_handle: str, child_handle: str) -> dict[str, Any]:
+    """Actualizar referencias padre/hijo nativas en el dibujo del proyecto activo.
+
+    Usa los handles devueltos por create_start_stop_circuit. Verifica identidad
+    TAG1/TAG2, FAMILY, INST y LOC; guarda el dibujo y actualiza la base y XREF.
+    Devuelve las referencias leídas después de ejecutar Electrical.
+    """
+    from src.tools.electrical_native import update_cross_references as update
+    try:
+        return update(electrical._get_conn().get_active_document(), coil_handle, child_handle)
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
 
 
 # ===========================================================================
@@ -344,6 +373,26 @@ def get_autocad_info() -> dict[str, Any]:
 # ===========================================================================
 # Electrical tools  (AutoCAD Electrical only)
 # ===========================================================================
+@mcp.tool()
+def insert_component(
+    component_type: str,
+    x: float,
+    y: float,
+    scale: float = 2.0,
+    rotation: float = 0.0,
+    attributes: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Insertá contacto NA/NC, bobina, pulsador, contactor, motor, relé térmico o temporizador.
+
+    AutoCAD Electrical 2023 IEC2: VCR21.dwg = abierto, VCR22.dwg = cerrado.
+    component_type accepts Spanish names or DWG codes. Use search_symbols to
+    inspect alternatives for motor, pulsador or temporizador before insertion.
+    x/y are drawing coordinates, scale defaults to 2, rotation is in degrees.
+    Optional attributes map tags to values. Returns the inserted block handle.
+    Inserts a block; automatic wire breaking and project updates are not run.
+    """
+    return electrical.insert_component(component_type, x, y, scale, rotation, attributes)
+
 
 @mcp.tool()
 def insert_electrical_symbol(
@@ -352,22 +401,16 @@ def insert_electrical_symbol(
     y: float,
     rotation: float = 0.0,
     attributes: dict[str, str] | None = None,
+    scale: float = 1.0,
 ) -> dict[str, Any]:
-    """Insert an AutoCAD Electrical symbol from the WD symbol library.
+    """Insert a DWG from the local Electrical 2023 IEC2 library through COM.
 
-    Parameters
-    ----------
-    symbol_name : str
-        Block name as it appears in the Electrical symbol library
-        (e.g. "WD_NOPEN", "WD_COIL").
-    x, y : float
-        Insertion point coordinates.
-    rotation : float
-        Rotation angle in degrees.
-    attributes : dict or None
-        Optional attribute overrides, e.g. {"TAG1": "101CR", "DESC1": "Motor Contactor"}.
+    Accepts Spanish names (bobina, contactor, relé térmico), or DWG codes
+    such as VCR21 (normally open), VCR22 (normally closed), optionally .dwg.
+    WD_NOPEN and WD_NCLOSE remain accepted aliases. Rotation is in degrees.
+    Optional attributes are applied to the returned block directly.
     """
-    return electrical.insert_electrical_symbol(symbol_name, x, y, rotation, attributes)
+    return electrical.insert_electrical_symbol(symbol_name, x, y, rotation, attributes, scale)
 
 
 @mcp.tool()
@@ -404,10 +447,22 @@ def get_symbol_list(category: str = "") -> dict[str, Any]:
     Parameters
     ----------
     category : str
-        Filter by category: "contacts", "coils", "plc", "terminals",
-        "transformers", "misc", or "" for all.
+        Use contacts, coils, pushbuttons, contactors, motors, overloads, timers,
+        a Spanish alias, or "" for all local DWGs. search_symbols adds metadata.
     """
     return electrical.get_symbol_list(category)
+
+
+@mcp.tool()
+def search_symbols(query: str = "", orientation: str = "", category: str = "", limit: int = 50) -> dict[str, Any]:
+    """Buscá símbolos IEC2 por nombre humano español o código DWG, sin AutoCAD.
+
+    Ejemplos: contacto NA/NC, bobina, pulsador, contactor, motor, relé térmico,
+    temporizador. orientation: horizontal/vertical; category: contacts, coils,
+    pushbuttons, contactors, motors, overloads, timers. Devuelve variantes y
+    descripciones de Autodesk. Usá un código devuelto para resolver ambigüedades.
+    """
+    return electrical.search_symbols(query, orientation, category, limit)
 
 
 @mcp.tool()

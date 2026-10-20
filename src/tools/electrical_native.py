@@ -39,7 +39,12 @@ def update_cross_references(doc, coil_handle, child_handle):
     for stage, expression in [
         ('save', '(progn (command "_.QSAVE") T)'),
         ('database', '(progn (wd_pds_flush_active_dwg) (c:ace_update_WFRM2ALL 1) (wd_pds_freshen_project_db (ace_getactiveproject)) T)'),
-        ('xref', '(progn (c:wd_xref_doit (list (nth (1- (c:wd_is_cur_dwg_in_proj)) (nth 5 (c:wd_proj_wdp_data)))) 2 1) T)')]:
+        # The project utility establishes the DBX update context. Calling
+        # wd_xref_doit directly can report false duplicate parents in a
+        # multi-drawing project and leave existing XREF text untouched.
+        # Only run_xref is enabled: no retag, numbering or setting changes.
+        ('xref', '(progn (c:ace_projwide_util_dbx (list (nth (1- (c:wd_is_cur_dwg_in_proj)) (nth 5 (c:wd_proj_wdp_data)))) (list 0 0 1) (list nil nil) nil) T)'),
+        ('save_references', '(progn (command "_.QSAVE") T)')]:
         try:
             evaluate(doc, expression, timeout=120)
         except Exception as exc:
@@ -49,7 +54,14 @@ def update_cross_references(doc, coil_handle, child_handle):
     def refs(attrs):
         return {k: v for k, v in attrs.items() if k.startswith("XREF") and v.strip()}
     pr, cr = refs(pa), refs(ca)
-    return {"success": bool(pr and cr), "parent_handle": coil_handle,
+    # A split-XREF parent must contain the bucket for this child's contact.
+    # A stale NO value must not hide a missing NC reference (or vice versa).
+    contact = ca.get("CONTACT", "").strip().upper()
+    required = "XREF" + contact
+    verified = bool(pr and cr)
+    if contact in ("NO", "NC") and ("XREFNO" in pa or "XREFNC" in pa):
+        verified = verified and bool(pa.get(required, "").strip())
+    return {"success": verified, "parent_handle": coil_handle,
             "child_handle": child_handle, "parent_references": pr,
             "child_references": cr, "tag": pa.get("TAG1"),
-            "status": "updated" if pr and cr else "unverified"}
+            "status": "updated" if verified else "unverified"}

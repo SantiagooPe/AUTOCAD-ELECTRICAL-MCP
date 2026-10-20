@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from src.tools import circuits
+from src.tools import circuits, electrical_primitives as primitives
 
 
 class StartStopTests(unittest.TestCase):
@@ -22,8 +22,8 @@ class StartStopTests(unittest.TestCase):
         with patch.object(circuits.symbol_catalog, 'resolve', return_value={'path': 'symbol.dwg', 'symbol': 'VTEST'}), \
              patch.object(circuits, 'ensure_wire_type'), \
              patch.object(circuits.electrical, '_get_conn', return_value=conn), \
-             patch.object(circuits, 'configure_attributes', side_effect=lambda block, attrs: attrs), \
-             patch.object(circuits, 'connection_points', return_value=[[0, 7.5, 0], [0, -7.5, 0]]):
+             patch.object(primitives, 'configure_attributes', side_effect=lambda block, attrs: attrs), \
+             patch.object(primitives, 'connection_points', return_value=[[0, 7.5, 0], [0, -7.5, 0]]):
             result = circuits.create_start_stop_circuit()
         self.assertFalse(result['success'])
         first.Delete.assert_called_once()

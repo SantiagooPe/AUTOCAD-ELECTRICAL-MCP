@@ -110,6 +110,18 @@ def create_start_stop_circuit(x: float = 0, y: float = 0, scale: float = 1,
 
 
 @mcp.tool()
+def create_reversing_circuit(x: float = 0, y: float = 0, scale: float = 1) -> dict[str, Any]:
+    """Crear inversión de giro IEC2 con S0 NC, S1/S2 NA y KM1/KM2.
+
+    Incluye mantenimiento NA, enclavamiento cruzado NC, wires nativos,
+    números 101..107 y XREF verificados. Requiere dibujo guardado del proyecto
+    activo para completar XREF. No modifica IEC2. x/y ubican el paro común.
+    Si falla la finalización conserva el circuito e informa assembled=True.
+    """
+    return circuits.create_reversing_circuit(x, y, scale)
+
+
+@mcp.tool()
 def update_cross_references(coil_handle: str, child_handle: str) -> dict[str, Any]:
     """Actualizar referencias padre/hijo nativas en el dibujo del proyecto activo.
 

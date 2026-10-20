@@ -37,8 +37,9 @@ falta y `c:ace_get_wiretype_list` / `c:ace_get_wiretype_data` verifican su
 registro y que admite numeración. No basta crear una capa de AutoCAD.
 
 En un dibujo guardado que pertenece al proyecto activo, guarda el dibujo,
-sincroniza/reconstruye la base nativa y llama `c:wd_xref_doit` para el dibujo
-actual. Comprueba referencias no vacías en padre e hijo y devuelve su lectura
+sincroniza/reconstruye la base nativa y llama `c:ace_projwide_util_dbx` con
+sólo XREF habilitado para el dibujo actual. Guarda las referencias y comprueba
+valores no vacíos en padre e hijo, incluido el campo NO/NC correspondiente, y devuelve su lectura
 en `cross_references`. No asigna textos XREF inventados. Para un dibujo fuera
 del proyecto devuelve `requires_project_drawing`; el circuito queda creado.
 Los fallos de actualización se informan separadamente, conservando el circuito.

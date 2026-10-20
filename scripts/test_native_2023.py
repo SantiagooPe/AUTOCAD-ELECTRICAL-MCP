@@ -11,6 +11,7 @@ from src.autocad.lisp import evaluate, quote
 from src.autocad.utils import get_block_attributes
 from src.tools import electrical
 from src.tools.electrical_native import ensure_wire_type
+from src.tools.electrical_primitives import number_wire
 
 
 def retry_com(operation):
@@ -93,9 +94,9 @@ def main():
         print('NATIVE NETWORKS', networks, flush=True)
         for index, expected in [(1, ('stop', 'start', 'holding')), (3, ('start', 'holding', 'coil'))]:
             assert all(result['components'][role]['handle'] in networks[index] for role in expected), networks
-        number = evaluate(doc, f'(c:wd_putwn (handent {quote(result["wires"][1]["handle"])}) "101")')
+        number = number_wire(doc, result["wires"][1]["handle"], "101")
         print('NATIVE NUMBER', number, flush=True)
-        assert number != 'nil'
+        assert number['wire_number'] == '101'
         numbers = [get_block_attributes(doc.ModelSpace.Item(i)) for i in range(doc.ModelSpace.Count)
                    if doc.ModelSpace.Item(i).ObjectName == 'AcDbBlockReference']
         assert any(a.get('WIRENO') == '101' for a in numbers), numbers

@@ -27,6 +27,7 @@ from src.providers import get_provider
 from src.tools import drawing, drawing3d, electrical, wires, components, reports
 from src.tools import circuits, project_validation
 from src.tools import project as proj
+from src.tools import project_management as project_manager
 from web.backend.state import add_log, add_history
 
 logger = logging.getLogger(__name__)
@@ -295,6 +296,30 @@ TOOL_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "Reports",
     },
     # ── Project ─────────────────────────────────────────────────────────
+    "create_project": {
+        "func": project_manager.create_project,
+        "description": "Crear y activar un proyecto Electrical nuevo copiando sólo configuración.",
+        "params": {"project_path": "str", "settings_from": "str (optional)"},
+        "category": "Project",
+    },
+    "create_project_drawing": {
+        "func": project_manager.create_project_drawing,
+        "description": "Crear DWG desde DWT Electrical y registrar su ruta exacta en el proyecto activo.",
+        "params": {"drawing_path": "str", "template_path": "str", "expected_project": "str (optional)", "section": "str (optional)", "description": "str (optional)"},
+        "category": "Project",
+    },
+    "register_project_drawing": {
+        "func": project_manager.register_drawing,
+        "description": "Registrar DWG vacío; rechazar dibujos ajenos con componentes o referencias.",
+        "params": {"drawing_path": "str (optional)", "expected_project": "str (optional)"},
+        "category": "Project",
+    },
+    "rebuild_project": {
+        "func": project_manager.rebuild_project,
+        "description": "Regenerar base y referencias del proyecto y validar el resultado.",
+        "params": {},
+        "category": "Project",
+    },
     "get_project_info": {
         "func": proj.get_project_info,
         "description": "Return project name, path, and list of open drawings.",

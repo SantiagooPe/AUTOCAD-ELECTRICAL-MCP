@@ -15,6 +15,7 @@ def path_key(value):
 
 def validate_snapshot(snapshot, planned=(), allow_incomplete_xrefs=False):
     """Validate a detached project inventory; handles are scoped by drawing."""
+    planned = list(planned)
     issues = list(snapshot.get('issues', []))
     if not snapshot.get('complete', True):
         issues.append(dict(code='incomplete_project_inventory'))
@@ -32,6 +33,10 @@ def validate_snapshot(snapshot, planned=(), allow_incomplete_xrefs=False):
         for wire in drawing['wires']:
             if normalize(wire['layer']) not in registered:
                 issue('unregistered_wire', drawing=drawing['path'], **wire)
+            if normalize(wire['layer']) in {normalize(n) for n in drawing.get('non_numberable_wire_types', [])}:
+                issue('wire_numbering_disabled', drawing=drawing['path'], **wire)
+            if wire.get('object_name', 'AcDbLine') != 'AcDbLine':
+                issue('non_native_wire', drawing=drawing['path'], **wire)
         for component in drawing['components']:
             attrs = component['attributes']
             location = dict(drawing=drawing['path'], handle=component['handle'])
@@ -40,16 +45,31 @@ def validate_snapshot(snapshot, planned=(), allow_incomplete_xrefs=False):
                 parents[(normalize(attrs['TAG1']), *identity)].append((attrs, location))
             if normalize(attrs.get('TAG2', '')):
                 children.append(((normalize(attrs['TAG2']), *identity), attrs, location))
+    tags = defaultdict(list)
     for key, matches in parents.items():
+        tags[key[:3]].extend(matches)
+    for key, matches in tags.items():
         if len(matches) > 1:
             issue('duplicate_tag', tag=key[0], entities=[loc for _, loc in matches])
+    planned_tags = set()
     for attrs in planned:
         key = (normalize(attrs.get('TAG1', '')), *(normalize(attrs.get(k, '')) for k in ('INST', 'LOC', 'FAMILY')))
         collisions = [loc for identity, values in parents.items()
                       if key[0] == identity[0] and key[1:3] == identity[1:3]
                       for _, loc in values]
-        if key[0] and collisions:
+        if key[0] and (collisions or key[:3] in planned_tags):
             issue('duplicate_tag', tag=key[0], planned=True, entities=collisions)
+        if key[0]:
+            planned_tags.add(key[:3])
+        child_tag = normalize(attrs.get('TAG2', ''))
+        if child_tag:
+            child_key = (child_tag, *(normalize(attrs.get(k, '')) for k in ('INST', 'LOC', 'FAMILY')))
+            planned_parent_count = sum(1 for candidate in planned
+                if (normalize(candidate.get('TAG1', '')), *(normalize(candidate.get(k, '')) for k in ('INST', 'LOC', 'FAMILY'))) == child_key)
+            if len(parents.get(child_key, [])) + planned_parent_count != 1:
+                issue('child_without_unique_parent', tag=child_tag, planned=True)
+        if any(str(value).strip() for name, value in attrs.items() if name in ('XREF', 'XREFNO', 'XREFNC')):
+            issue('inherited_cross_reference', planned=True)
     for key, attrs, location in children:
         matches = parents.get(key, [])
         if not matches:
@@ -78,6 +98,12 @@ def _strings(value):
 
 
 def collect_snapshot(doc):
+    """Retry only transient COM rejections; the inventory itself is read-only."""
+    from src.tools.project_management import retry_com
+    return retry_com(lambda: _collect_snapshot_once(doc))
+
+
+def _collect_snapshot_once(doc):
     """Use Electrical's active WDP, never infer it from neighbouring files.
 
     Closed drawings deliberately fail coverage: opening/saving them during a
@@ -108,20 +134,24 @@ def collect_snapshot(doc):
             current.Activate()
             wire_types = _strings(evaluate(current, '(progn ' + prefix + '(c:ace_get_wiretype_list nil))'))
             drawing = dict(path=path, components=[], wires=[], wire_types=wire_types)
+            from src.autocad.lisp import quote
+            drawing['non_numberable_wire_types'] = [layer for layer in wire_types
+                if evaluate(current, f'(last (c:ace_get_wiretype_data {quote(layer)} nil))') == '"0"']
             for index in range(current.ModelSpace.Count):
                 obj = current.ModelSpace.Item(index)
                 if obj.ObjectName == 'AcDbBlockReference':
                     attrs = {a.TagString.upper(): a.TextString
                              for a in [*obj.GetConstantAttributes(), *obj.GetAttributes()]}
                     drawing['components'].append(dict(handle=obj.Handle, attributes=attrs))
-                elif obj.ObjectName == 'AcDbLine':
+                elif obj.ObjectName in ('AcDbLine', 'AcDbPolyline', 'AcDb2dPolyline', 'AcDb3dPolyline'):
                     # WIRES is the conventional unregistered candidate; registered
                     # custom wire layers are also included. Other geometry is ignored.
                     if normalize(obj.Layer) == 'wires' or normalize(obj.Layer) in {normalize(w) for w in wire_types}:
-                        drawing['wires'].append(dict(handle=obj.Handle, layer=obj.Layer))
+                        drawing['wires'].append(dict(handle=obj.Handle, layer=obj.Layer, object_name=obj.ObjectName))
             snapshot['inventory'].append(drawing)
         finally:
-            doc.Activate()
+            from src.tools.project_management import retry_com
+            retry_com(lambda: doc.Activate())
     return snapshot
 
 

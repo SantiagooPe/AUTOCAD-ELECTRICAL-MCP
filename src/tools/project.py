@@ -36,9 +36,8 @@ def _get_conn():
 def get_project_info() -> dict[str, Any]:
     """Return information about the currently active AutoCAD Electrical project.
 
-    AutoCAD Electrical stores project data in a ``.wdp`` file.  This function
-    queries the application for all open documents and attempts to locate the
-    active project file.
+    Queries Electrical's authoritative active WDP and its drawing membership,
+    along with the separately listed open documents.
 
     Returns
     -------
@@ -50,14 +49,10 @@ def get_project_info() -> dict[str, Any]:
         app = conn.get_application()
         doc = conn.get_active_document()
 
-        # Attempt to find a .wdp project file in the same directory as the active drawing
-        doc_path = Path(doc.FullName)
-        project_name = "Unknown"
-        project_path = ""
-        wdp_files = list(doc_path.parent.glob("*.wdp"))
-        if wdp_files:
-            project_path = str(wdp_files[0])
-            project_name = wdp_files[0].stem
+        from src.tools.project_management import context
+        state = context(doc)
+        project_path = state['project']
+        project_name = Path(project_path).stem
 
         drawings: list[str] = []
         for i in range(app.Documents.Count):
@@ -71,6 +66,7 @@ def get_project_info() -> dict[str, Any]:
             "success": True,
             "project_name": project_name,
             "project_path": project_path,
+            "project_drawings": state["drawings"],
             "active_drawing": doc.Name,
             "active_drawing_path": doc.FullName,
             "open_drawings": drawings,
@@ -132,70 +128,26 @@ def list_drawings() -> dict[str, Any]:
 
 
 def open_drawing(sheet_number_or_name: str) -> dict[str, Any]:
-    """Switch to or open a drawing by sheet number or file name.
-
-    If the drawing is already open it is simply activated.  If not, AutoCAD's
-    ``OPEN`` command is used to open it from the project directory.
-
-    Parameters
-    ----------
-    sheet_number_or_name : str
-        Sheet number (e.g. ``"3"``) or drawing filename (e.g.
-        ``"Sheet_03.dwg"``).
-
-    Returns
-    -------
-    dict
-        Success/error dict with the activated drawing name.
-    """
+    """Open exactly one member of the active WDP; reject ambiguous sheet names."""
     try:
-        conn = _get_conn()
-        app = conn.get_application()
-        query = sheet_number_or_name.strip().lower()
-
-        # Try to find the drawing among open documents
+        import ntpath
+        from src.tools.project_management import context, resolve_drawing, retry_com
+        from src.tools.project_validation import path_key
+        app = _get_conn().get_application()
+        state = context(app.ActiveDocument)
+        path = resolve_drawing(state['drawings'], sheet_number_or_name)
         for i in range(app.Documents.Count):
-            try:
-                d = app.Documents.Item(i)
-                name_lower = d.Name.lower()
-                if query in name_lower or name_lower.startswith(query):
-                    app.ActiveDocument = d
-                    return {
-                        "success": True,
-                        "drawing": d.Name,
-                        "action": "activated",
-                    }
-            except Exception:
-                pass
-
-        # Try to open from the project directory
-        active_dir = Path(app.ActiveDocument.FullName).parent
-        candidates = list(active_dir.glob(f"*{query}*.dwg"))
-        if not candidates:
-            candidates = list(active_dir.glob(f"*{sheet_number_or_name}*.dwg"))
-
-        if candidates:
-            file_path = str(candidates[0])
-            conn.send_command(f'(command "OPEN" "{file_path}")\n')
-            return {
-                "success": True,
-                "drawing": candidates[0].name,
-                "action": "opened",
-                "path": file_path,
-            }
-
-        return {
-            "success": False,
-            "error": (
-                f"Drawing '{sheet_number_or_name}' not found among open documents "
-                f"or in '{active_dir}'."
-            ),
-        }
-    except AutoCADConnectionError as exc:
-        return {"success": False, "error": str(exc)}
+            doc = app.Documents.Item(i)
+            if path_key(doc.FullName) == path_key(path):
+                retry_com(lambda: doc.Activate())
+                return dict(success=True, drawing=doc.Name, path=path, action='activated')
+        doc = app.Documents.Open(path)
+        if path_key(retry_com(lambda: doc.FullName)) != path_key(path):
+            raise RuntimeError('AutoCAD abrió un dibujo distinto del solicitado')
+        return dict(success=True, drawing=ntpath.basename(path), path=path, action='opened')
     except Exception as exc:
-        logger.exception("open_drawing failed")
-        return {"success": False, "error": str(exc)}
+        return dict(success=False, error=str(exc))
+
 
 
 def close_drawing(save: bool = True) -> dict[str, Any]:

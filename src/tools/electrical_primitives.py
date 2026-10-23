@@ -52,6 +52,12 @@ def insert_iec_component(doc, library, symbol, x, y, scale=1, rotation=0,
     if created is not None:
         created.append(block)
     try:
+        # A cached block definition may contain references from an older circuit.
+        # Clear only this new instance before assigning its destination identity.
+        for attr in block.GetAttributes():
+            if attr.TagString.upper().startswith('XREF'):
+                attr.TextString = ''
+                attr.Update()
         actual = configure_attributes(block, attributes or {})
         result = {"handle": block.Handle, "symbol": entry["symbol"], "attributes": actual}
         if require_vertical_terminals:

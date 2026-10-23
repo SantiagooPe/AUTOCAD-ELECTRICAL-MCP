@@ -758,6 +758,35 @@ def get_project_summary() -> dict[str, Any]:
 # ===========================================================================
 
 @mcp.tool()
+def create_project(project_path: str, settings_from: str | None = None) -> dict[str, Any]:
+    """Crear y activar WDP nuevo copiando sólo configuración de un proyecto base."""
+    from src.tools.project_management import create_project as create
+    return create(project_path, settings_from)
+
+
+@mcp.tool()
+def register_project_drawing(drawing_path: str | None = None, expected_project: str | None = None,
+                             section: str = '', description: str = '') -> dict[str, Any]:
+    """Registrar DWG vacío exacto; bloquear dibujos ajenos con referencias."""
+    from src.tools.project_management import register_drawing
+    return register_drawing(drawing_path, expected_project, section, description)
+
+
+@mcp.tool()
+def create_project_drawing(drawing_path: str, template_path: str, expected_project: str | None = None,
+                           section: str = '', description: str = '') -> dict[str, Any]:
+    """Crear DWG nuevo desde DWT Electrical y agregarlo al proyecto activo."""
+    from src.tools.project_management import create_project_drawing as create
+    return create(drawing_path, template_path, expected_project, section, description)
+
+
+@mcp.tool()
+def rebuild_project() -> dict[str, Any]:
+    """Regenerar base y XREF del proyecto; validar el resultado."""
+    from src.tools.project_management import rebuild_project as rebuild
+    return rebuild()
+
+@mcp.tool()
 def validate_project() -> dict[str, Any]:
     """Inspeccionar el proyecto activo sin modificar circuitos; listar conflictos y cobertura."""
     from src.tools.project_validation import validate_project as validate

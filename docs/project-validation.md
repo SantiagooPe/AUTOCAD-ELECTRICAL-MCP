@@ -18,11 +18,15 @@ Códigos de diagnóstico:
 
 | Código | Significado |
 | --- | --- |
-| `duplicate_tag` | Más de un TAG1 con igual TAG, INST, LOC y FAMILY, o un TAG1 propuesto que ya existe en esa INST/LOC. |
+| `duplicate_tag` | Más de un TAG1 con igual TAG, INST y LOC, incluso entre familias o dentro de un lote propuesto. |
 | `ambiguous_parent` | Un TAG2 tiene varios padres con la misma identidad. |
 | `child_without_parent` | No hay un TAG1 con el TAG2, INST, LOC y FAMILY del hijo. |
 | `incomplete_cross_reference` | Falta XREF de padre/hijo, contiene `??`, o falta la referencia NO/NC correspondiente en un padre con XREF separado. |
 | `unregistered_wire` | Un conductor inventariado usa una capa ausente en los tipos Electrical registrados. |
+| `non_native_wire` | Geometría de conductor que no es LINE nativa. |
+| `wire_numbering_disabled` | El tipo de conductor excluye la numeración. |
+| `child_without_unique_parent` | Un hijo propuesto no tiene exactamente un padre en el proyecto o lote. |
+| `inherited_cross_reference` | Una inserción propone texto XREF de origen. |
 | `drawing_outside_project` | El dibujo activo o inventariado no pertenece al WDP activo. |
 | `drawing_not_inspected` | Una hoja del proyecto está cerrada. |
 | `incomplete_project_inventory` | La cobertura del proyecto es incompleta. |

@@ -37,7 +37,7 @@ def create_start_stop_circuit(x: float = 0, y: float = 0, scale: float = 1,
         specs = [
             ("stop", "pulsador NC", 0, 0, {"TAG1": "S0", "DESC1": "PARO", "TERM01": "11", "TERM02": "12"}),
             ("start", "pulsador NA", 0, -60, {"TAG1": "S1", "DESC1": "MARCHA", "TERM01": "13", "TERM02": "14"}),
-            ("coil", "bobina de contactor", 0, -120, {"TAG1": coil_tag, "DESC1": "CONTACTOR", "TERM01": "A1", "TERM02": "A2"}),
+            ("coil", "bobina de contactor", 0, -120, {"TAG1": coil_tag, "FAMILY": "MS", "DESC1": "CONTACTOR", "TERM01": "A1", "TERM02": "A2"}),
             ("holding", "VMS21", 60, -60, {"TAG2": coil_tag, "FAMILY": "MS", "DESC1": "ENCLAVAMIENTO", "TERM01": "13", "TERM02": "14"}),
         ]
         # Resolve every symbol before changing the document.

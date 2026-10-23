@@ -3,6 +3,14 @@ from src.autocad.lisp import evaluate, quote
 from src.autocad.utils import get_block_attributes
 
 
+DATABASE_REFRESH = '(progn (wd_pds_flush_active_dwg) (c:ace_update_WFRM2ALL 1) (wd_pds_freshen_project_db (ace_getactiveproject)) T)'
+
+
+def project_xref_expression(drawings_expression):
+    """Shared native DBX context for current-sheet and whole-project updates."""
+    return f'(progn (c:ace_projwide_util_dbx {drawings_expression} (list 0 0 1) (list nil nil) nil) T)'
+
+
 def ensure_wire_type(doc, layer="WIRES"):
     name = quote(layer)
     value = evaluate(doc, f'''(progn
@@ -40,12 +48,12 @@ def update_cross_references(doc, coil_handle, child_handle):
                 "error": "Guardar el dibujo e incorporarlo al proyecto activo antes de actualizar referencias"}
     for stage, expression in [
         ('save', '(progn (command "_.QSAVE") T)'),
-        ('database', '(progn (wd_pds_flush_active_dwg) (c:ace_update_WFRM2ALL 1) (wd_pds_freshen_project_db (ace_getactiveproject)) T)'),
+        ('database', DATABASE_REFRESH),
         # The project utility establishes the DBX update context. Calling
         # wd_xref_doit directly can report false duplicate parents in a
         # multi-drawing project and leave existing XREF text untouched.
         # Only run_xref is enabled: no retag, numbering or setting changes.
-        ('xref', '(progn (c:ace_projwide_util_dbx (list (nth (1- (c:wd_is_cur_dwg_in_proj)) (nth 5 (c:wd_proj_wdp_data)))) (list 0 0 1) (list nil nil) nil) T)'),
+        ('xref', project_xref_expression('(list (nth (1- (c:wd_is_cur_dwg_in_proj)) (nth 5 (c:wd_proj_wdp_data))))')),
         ('save_references', '(progn (command "_.QSAVE") T)')]:
         try:
             evaluate(doc, expression, timeout=120)

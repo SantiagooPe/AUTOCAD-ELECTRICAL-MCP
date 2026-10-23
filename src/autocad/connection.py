@@ -129,7 +129,11 @@ class AutoCADConnection:
             # Touch a trivial property to verify the COM object is still alive
             _ = self._app.Name
             return True
-        except Exception:
+        except Exception as exc:
+            # Electrical rejects COM calls briefly during document activation.
+            # Busy is not disconnected: retain the application reference.
+            if getattr(exc, 'hresult', None) in (-2147418111, -2147417846):
+                return True
             self._app = None
             return False
 

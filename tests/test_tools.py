@@ -243,7 +243,9 @@ class TestElectricalTools:
         monkeypatch.setattr("src.tools.electrical.IEC2_LIBRARY", tmp_path)
         (tmp_path / "VCR21.dwg").touch()
         mock_ms.InsertBlock.return_value.Handle = "AB12"
-        result = insert_electrical_symbol("WD_NOPEN", 100, 200)
+        mock_ms.InsertBlock.return_value.GetAttributes.return_value = [MagicMock(TagString='TAG2')]
+        with patch("src.tools.project_validation.require_valid_project"):
+            result = insert_electrical_symbol("WD_NOPEN", 100, 200, attributes={"TAG2": "KM1"})
         assert result["success"] is True
         assert result["handle"] == "AB12"
         assert mock_ms.InsertBlock.call_args.args[1] == str(tmp_path / "VCR21.dwg")
@@ -266,7 +268,8 @@ class TestElectricalTools:
     def test_edit_component_attributes_not_found(self, mock_ms):
         from src.tools.electrical import edit_component_attributes
         mock_ms.Count = 0  # empty drawing
-        result = edit_component_attributes("NOTFOUND", {"DESC1": "Test"})
+        with patch("src.tools.project_validation.validate_component_update", return_value={"success": True}):
+            result = edit_component_attributes("NOTFOUND", {"DESC1": "Test"})
         assert result["success"] is False
         assert "not found" in result["error"].lower()
 
@@ -405,7 +408,8 @@ class TestProjectTools:
         mock_app.Documents.Count = 1
         mock_app.Documents.Item.return_value = mock_doc
         mock_conn.get_application.return_value = mock_app
-        result = get_project_info()
+        with patch("src.tools.project_management.context", return_value={"project": "C:/P/active.wdp", "drawings": []}):
+            result = get_project_info()
         assert result["success"] is True
         assert "active_drawing" in result
 
@@ -428,7 +432,8 @@ class TestProjectTools:
 
     def test_sync_project_sends_command(self, mock_conn):
         from src.tools.project import sync_project
-        result = sync_project()
+        with patch("src.tools.project_validation.validate_project", return_value={"success": True}):
+            result = sync_project()
         assert mock_conn.send_command.called
         assert result["success"] is True
 

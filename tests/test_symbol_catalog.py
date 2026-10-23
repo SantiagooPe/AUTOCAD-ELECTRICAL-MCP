@@ -52,9 +52,10 @@ def test_inventory_filters_and_case(symbols):
 
 def test_all_concepts_insert_through_com(symbols):
     conn = MagicMock()
-    with patch.object(electrical, "_get_conn", return_value=conn):
+    conn.get_model_space.return_value.InsertBlock.return_value.GetAttributes.return_value = [MagicMock(TagString='TAG1')]
+    with patch.object(electrical, "_get_conn", return_value=conn), patch("src.tools.project_validation.require_valid_project"):
         for _, label, *_ in catalog.CONCEPTS:
-            assert electrical.insert_component(label, 0, 0)["success"]
+            assert electrical.insert_component(label, 0, 0, attributes={"TAG1": "Q1"})["success"]
     assert conn.get_model_space.return_value.InsertBlock.call_count == len(catalog.CONCEPTS)
 
 

@@ -79,6 +79,13 @@ def _insert_symbol(
         if not symbol_path.is_file():
             return {"success": False, "error": f"No existe el símbolo: {symbol_path}"}
         conn = _get_conn()
+        from src.tools.project_validation import require_valid_project
+        attrs = {k.upper(): v for k, v in (attributes or {}).items()}
+        if not (attrs.get('TAG1', '').strip() or attrs.get('TAG2', '').strip()):
+            raise ValueError('Se requiere TAG1 o TAG2 explícito para evitar identificadores heredados')
+        if any(v.strip() for k, v in attrs.items() if k.startswith('XREF')):
+            raise ValueError('Las referencias se generan en el proyecto destino')
+        require_valid_project(conn.get_active_document(), [attrs])
         if conn.get_application().GetAcadState().IsQuiescent is False:
             return {
                 "success": False,
@@ -93,9 +100,15 @@ def _insert_symbol(
             "handle": block.Handle,
         }
         if attributes:
-            result["attributes_set"] = set_block_attributes(block, attributes)
+            result["attributes_set"] = set_block_attributes(block, attrs)
             if result["attributes_set"] < len(attributes):
-                result["warning"] = "Some attributes were missing or could not be updated."
+                block.Delete()
+                raise RuntimeError('No se pudieron asignar los atributos solicitados; inserción eliminada')
+        # Only this instance is changed; source IEC2 files remain read-only.
+        for attr in block.GetAttributes():
+            if attr.TagString.upper().startswith('XREF'):
+                attr.TextString = ''
+                attr.Update()
         return result
     except Exception as exc:
         logger.exception("Electrical symbol insertion failed")

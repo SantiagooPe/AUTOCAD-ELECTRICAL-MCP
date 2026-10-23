@@ -104,6 +104,7 @@ class CircuitRegressionTests(unittest.TestCase):
         doc.ModelSpace.AddLine.side_effect = add_line
         doc.HandleToObject.side_effect = entities.__getitem__
         with ExitStack() as stack:
+            stack.enter_context(patch.object(circuits, "require_valid_project"))
             stack.enter_context(patch.object(circuits.electrical, '_get_conn', return_value=conn))
             stack.enter_context(patch.object(p, 'point3d', side_effect=lambda a,b,c=0: (a,b,c)))
             stack.enter_context(patch.object(circuits.symbol_catalog, 'resolve', side_effect=lambda lib,s: {'path': s+'.dwg', 'symbol': s}))

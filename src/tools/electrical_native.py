@@ -22,6 +22,8 @@ def ensure_wire_type(doc, layer="WIRES"):
 
 def update_cross_references(doc, coil_handle, child_handle):
     """Update the current project drawing; require saved project membership."""
+    from src.tools.project_validation import require_valid_project
+    require_valid_project(doc, allow_incomplete_xrefs=True)
     parent = doc.HandleToObject(coil_handle)
     child = doc.HandleToObject(child_handle)
     pa, ca = get_block_attributes(parent), get_block_attributes(child)

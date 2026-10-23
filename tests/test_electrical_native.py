@@ -5,6 +5,11 @@ from src.tools import electrical_native as native
 
 
 class NativeTests(unittest.TestCase):
+    def setUp(self):
+        guard = patch("src.tools.project_validation.require_valid_project")
+        guard.start()
+        self.addCleanup(guard.stop)
+
     def test_ambiguous_project_references_are_not_verified(self):
         for tag in ('KM1', 'KM2'):
             for parent_ref, child_ref in [('4-A,??.4-A', '3-E'), ('4-A', '??.3-B,3-E')]:

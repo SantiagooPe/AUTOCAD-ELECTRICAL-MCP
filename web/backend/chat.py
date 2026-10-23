@@ -25,7 +25,7 @@ from typing import Any
 from src.config import get_config
 from src.providers import get_provider
 from src.tools import drawing, drawing3d, electrical, wires, components, reports
-from src.tools import circuits
+from src.tools import circuits, project_validation
 from src.tools import project as proj
 from web.backend.state import add_log, add_history
 
@@ -36,6 +36,12 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 TOOL_REGISTRY: dict[str, dict[str, Any]] = {
+    "validate_project": {
+        "func": project_validation.validate_project,
+        "description": "Validar el proyecto Electrical activo sin modificar circuitos; informar conflictos y hojas sin inspeccionar.",
+        "params": {},
+        "category": "Project",
+    },
     "create_start_stop_circuit": {
         "func": circuits.create_start_stop_circuit,
         "description": "Crear circuito marcha-paro IEC2 con paro NC, marcha NA, bobina KM1 y contacto auxiliar NA en paralelo para enclavamiento, unidos por conductores.",

@@ -173,6 +173,10 @@ def update_component(
     """
     try:
         conn = _get_conn()
+        from src.tools.project_validation import validate_component_update
+        validation = validate_component_update(conn.get_active_document(), tag1, attributes)
+        if not validation["success"]:
+            return {"success": False, "validation": validation, "error": "Validación de proyecto fallida"}
         doc = conn.get_active_document()
         ms = conn.get_model_space()
 

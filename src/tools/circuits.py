@@ -6,6 +6,7 @@ import logging
 
 from src.autocad.utils import get_block_attributes
 from src.tools import electrical, symbol_catalog
+from src.tools.project_validation import require_valid_project, ProjectValidationError
 from src.tools.electrical_primitives import (
     ensure_wire_type, update_cross_references, connection_points, configure_attributes,
     insert_iec_component, create_electrical_wires, associate_parent_child,
@@ -46,14 +47,7 @@ def create_start_stop_circuit(x: float = 0, y: float = 0, scale: float = 1,
         if not app.GetAcadState().IsQuiescent:
             raise RuntimeError("AutoCAD está ocupado")
         doc = conn.get_active_document()
-        ms = doc.ModelSpace
-        for i in range(ms.Count):
-            obj = ms.Item(i)
-            if obj.ObjectName == "AcDbBlockReference":
-                attrs = get_block_attributes(obj)
-                tags = {attrs.get(k, "").strip().casefold() for k in ("TAG1", "TAG2")}
-                if tags & {"s0", "s1", coil_tag.casefold()}:
-                    raise ValueError("Ya existen identificadores del circuito en el dibujo")
+        require_valid_project(doc, [spec[4] for spec in specs])
         wire_type = ensure_wire_type(doc)
         doc = conn.get_active_document()
         doc.StartUndoMark()
@@ -110,7 +104,7 @@ def create_start_stop_circuit(x: float = 0, y: float = 0, scale: float = 1,
                     remaining.append(entity.Handle)
                 except Exception:
                     remaining.append("unknown")
-        return {"success": False, "error": str(exc), "remaining_handles": remaining}
+        return {"success": False, "error": str(exc), "remaining_handles": remaining, **({"validation": exc.report} if isinstance(exc, ProjectValidationError) else {})}
     finally:
         if undo_started:
             doc.EndUndoMark()
@@ -147,12 +141,7 @@ def create_reversing_circuit(x: float = 0, y: float = 0, scale: float = 1) -> di
         if not conn.get_application().GetAcadState().IsQuiescent:
             raise RuntimeError("AutoCAD está ocupado")
         doc = conn.get_active_document()
-        for i in range(doc.ModelSpace.Count):
-            obj = doc.ModelSpace.Item(i)
-            if obj.ObjectName == "AcDbBlockReference":
-                attrs = get_block_attributes(obj)
-                if any(attrs.get(k, "").strip().casefold() in {"s0", "s1", "s2", "km1", "km2"} for k in ("TAG1", "TAG2")):
-                    raise ValueError("Ya existen identificadores del circuito en el dibujo")
+        require_valid_project(doc, [spec[4] for spec in specs])
         wire_type = ensure_wire_type(doc)
         doc = conn.get_active_document()
         doc.StartUndoMark()
@@ -228,7 +217,7 @@ def create_reversing_circuit(x: float = 0, y: float = 0, scale: float = 1) -> di
                         remaining.append(entity.Handle)
                     except Exception:
                         remaining.append("unknown")
-        result = {"success": False, "assembled": assembled, "error": str(exc), "remaining_handles": remaining}
+        result = {"success": False, "assembled": assembled, "error": str(exc), "remaining_handles": remaining, **({"validation": exc.report} if isinstance(exc, ProjectValidationError) else {})}
         if assembled:
             result.update(components=components, wires=wires, wire_numbers=numbering,
                           cross_references=references)
@@ -282,12 +271,7 @@ def create_star_delta_circuit(x: float = 0, y: float = 0, scale: float = 1, tran
         if not conn.get_application().GetAcadState().IsQuiescent:
             raise RuntimeError("AutoCAD está ocupado")
         doc = conn.get_active_document()
-        for i in range(doc.ModelSpace.Count):
-            obj = doc.ModelSpace.Item(i)
-            if obj.ObjectName == "AcDbBlockReference":
-                attrs = get_block_attributes(obj)
-                if any(attrs.get(k, "").strip().casefold() in {"s0", "s1", "km1", "km2", "km3", "kt1"} for k in ("TAG1", "TAG2")):
-                    raise ValueError("Ya existen identificadores del circuito en el dibujo")
+        require_valid_project(doc, [spec[4] for spec in specs])
         wire_type = ensure_wire_type(doc)
         doc = conn.get_active_document()
         doc.StartUndoMark()
@@ -373,7 +357,7 @@ def create_star_delta_circuit(x: float = 0, y: float = 0, scale: float = 1, tran
                         remaining.append(entity.Handle)
                     except Exception:
                         remaining.append("unknown")
-        result = {"success": False, "assembled": assembled, "error": str(exc), "remaining_handles": remaining}
+        result = {"success": False, "assembled": assembled, "error": str(exc), "remaining_handles": remaining, **({"validation": exc.report} if isinstance(exc, ProjectValidationError) else {})}
         if assembled:
             result.update(components=components, wires=wires, wire_numbers=numbering,
                           cross_references=references)

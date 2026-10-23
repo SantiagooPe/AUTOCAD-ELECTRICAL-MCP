@@ -146,7 +146,9 @@ def update_cross_references(coil_handle: str, child_handle: str) -> dict[str, An
     try:
         return update(electrical._get_conn().get_active_document(), coil_handle, child_handle)
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        from src.tools.project_validation import ProjectValidationError
+        return {"success": False, "error": str(exc),
+                **({"validation": exc.report} if isinstance(exc, ProjectValidationError) else {})}
 
 
 # ===========================================================================
@@ -754,6 +756,13 @@ def get_project_summary() -> dict[str, Any]:
 # ===========================================================================
 # Project tools
 # ===========================================================================
+
+@mcp.tool()
+def validate_project() -> dict[str, Any]:
+    """Inspeccionar el proyecto activo sin modificar circuitos; listar conflictos y cobertura."""
+    from src.tools.project_validation import validate_project as validate
+    return validate()
+
 
 @mcp.tool()
 def get_project_info() -> dict[str, Any]:

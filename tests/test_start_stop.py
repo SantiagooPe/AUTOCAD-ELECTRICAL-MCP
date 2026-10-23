@@ -19,7 +19,7 @@ class StartStopTests(unittest.TestCase):
         doc.ModelSpace.Count = 0
         first = MagicMock()
         doc.ModelSpace.InsertBlock.side_effect = [first, RuntimeError('insert failed')]
-        with patch.object(circuits.symbol_catalog, 'resolve', return_value={'path': 'symbol.dwg', 'symbol': 'VTEST'}), \
+        with patch.object(circuits, 'require_valid_project'), patch.object(circuits.symbol_catalog, 'resolve', return_value={'path': 'symbol.dwg', 'symbol': 'VTEST'}), \
              patch.object(circuits, 'ensure_wire_type'), \
              patch.object(circuits.electrical, '_get_conn', return_value=conn), \
              patch.object(primitives, 'configure_attributes', side_effect=lambda block, attrs: attrs), \

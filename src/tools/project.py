@@ -243,6 +243,10 @@ def sync_project() -> dict[str, Any]:
     """
     try:
         conn = _get_conn()
+        from src.tools.project_validation import validate_project
+        validation = validate_project(conn.get_active_document())
+        if not validation["success"]:
+            return {"success": False, "validation": validation, "error": "Validación de proyecto fallida"}
         conn.send_command("WDSYNCH\n\n")
         return {
             "success": True,

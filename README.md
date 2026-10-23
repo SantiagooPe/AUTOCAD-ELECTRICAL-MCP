@@ -556,3 +556,5 @@ Copyright © 2026 Randy Igualguana
 ---
 
 *Built with [Model Context Protocol](https://modelcontextprotocol.io) · [FastMCP](https://github.com/jlowin/fastmcp) · [FastAPI](https://fastapi.tiangolo.com) · [pywin32](https://github.com/mhammond/pywin32) · [Ollama](https://ollama.com)*
+
+Validación previa de proyecto: ver [controles, alcance y regresiones](docs/project-validation.md).

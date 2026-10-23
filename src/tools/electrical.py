@@ -342,6 +342,10 @@ def create_cross_reference(
     """
     try:
         conn = _get_conn()
+        from src.tools.project_validation import validate_project
+        validation = validate_project(conn.get_active_document())
+        if not validation["success"]:
+            return {"success": False, "validation": validation, "error": "Validación de proyecto fallida"}
         cmd = f"WDXREF\n{source_tag}\n{dest_sheet}\n{dest_ref}\n\n"
         conn.send_command(cmd)
         return {
@@ -380,6 +384,10 @@ def edit_component_attributes(
     """
     try:
         conn = _get_conn()
+        from src.tools.project_validation import validate_component_update
+        validation = validate_component_update(conn.get_active_document(), tag1, attributes_dict)
+        if not validation["success"]:
+            return {"success": False, "validation": validation, "error": "Validación de proyecto fallida"}
         doc = conn.get_active_document()
         ms = conn.get_model_space()
 

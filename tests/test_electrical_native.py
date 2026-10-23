@@ -5,6 +5,16 @@ from src.tools import electrical_native as native
 
 
 class NativeTests(unittest.TestCase):
+    def test_ambiguous_project_references_are_not_verified(self):
+        for tag in ('KM1', 'KM2'):
+            for parent_ref, child_ref in [('4-A,??.4-A', '3-E'), ('4-A', '??.3-B,3-E')]:
+                parent = dict(TAG1=tag, FAMILY='MS', XREFNO=parent_ref)
+                child = dict(TAG2=tag, FAMILY='MS', CONTACT='NO', XREF=child_ref)
+                with self.subTest(tag=tag, parent=parent_ref, child=child_ref), \
+                     patch.object(native, 'get_block_attributes', side_effect=[parent, child, parent, child]), \
+                     patch.object(native, 'evaluate', return_value='T'):
+                    self.assertFalse(native.update_cross_references(MagicMock(), 'A', 'B')['success'])
+
     def test_split_parent_requires_the_contact_attribute_even_if_missing(self):
         parent = dict(TAG1='KM1', XREFNO='4-A')
         child = dict(TAG2='KM1', CONTACT='NC', XREF='3-B')

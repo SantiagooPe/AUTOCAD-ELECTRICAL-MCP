@@ -58,7 +58,7 @@ def update_cross_references(doc, coil_handle, child_handle):
     # A stale NO value must not hide a missing NC reference (or vice versa).
     contact = ca.get("CONTACT", "").strip().upper()
     required = "XREF" + contact
-    verified = bool(pr and cr)
+    verified = bool(pr and cr) and not any('??' in v for v in [*pr.values(), *cr.values()])
     if contact in ("NO", "NC") and ("XREFNO" in pa or "XREFNC" in pa):
         verified = verified and bool(pa.get(required, "").strip())
     return {"success": verified, "parent_handle": coil_handle,

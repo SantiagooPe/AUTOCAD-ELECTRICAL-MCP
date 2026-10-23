@@ -54,3 +54,26 @@ The full offline suite uses `python -m pytest -m "not integration"`.
 `scripts/test_native_2023.py` additionally verifies actual Electrical networks,
 native numbering, cross-references, and unchanged IEC2 hashes in an isolated
 live project. It requires AutoCAD Electrical 2023 and is not an offline test.
+### Mando estrella-triángulo
+
+`create_star_delta_circuit(x=0, y=0, scale=1, transition_seconds=5)` compone
+11 símbolos IEC2 existentes usando las mismas primitivas que marcha-paro e
+inversión. S0 NC corta todo el mando; S1 NA y el auxiliar NA de KM1 en paralelo
+mantienen la alimentación de KM1, KT1 y las ramas estrella/triángulo.
+KT1 es a la conexión: su NC alimenta KM2 y su NA alimenta KM3. Cada rama
+incluye un NC del contactor opuesto. Al cumplirse el tiempo, KM2 cae y su NC
+permite entrar a KM3; KM1 permanece activado. Parar desenergiza también KT1.
+
+El tiempo se indica en DESC2 de KT1, en segundos; es un ajuste documentado
+del dispositivo, no una simulación de relés dentro de AutoCAD.
+Los ocho nodos eléctricos reciben números nativos 101..108 y se actualizan
+cinco parejas padre/hijo. Se requiere un dibujo guardado del proyecto activo
+para completar XREF. `success=False, assembled=True` conserva un circuito
+terminado si falla la numeración o las referencias; los fallos de montaje
+eliminan las entidades nuevas. La biblioteca IEC2 se usa solo para lectura.
+
+Regresión: `python -m unittest tests.test_star_delta`.
+Prueba real 2023: `python -m scripts.test_star_delta_2023`; crea dibujo y
+proyecto temporales en artifacts, verifica redes Electrical, números, XREF,
+64 estados de contactos y hashes SHA256 de IEC2, y restaura el dibujo y
+proyecto previos.

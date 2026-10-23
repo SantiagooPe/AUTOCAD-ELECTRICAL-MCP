@@ -122,6 +122,19 @@ def create_reversing_circuit(x: float = 0, y: float = 0, scale: float = 1) -> di
 
 
 @mcp.tool()
+def create_star_delta_circuit(x: float = 0, y: float = 0, scale: float = 1,
+                              transition_seconds: float = 5) -> dict[str, Any]:
+    """Crear mando estrella-triángulo IEC2 con mantenimiento KM1 y KT1.
+
+    Paro NC, marcha NA, KM1/KM2/KM3, enclavamientos NC cruzados,
+    números 101..108 y XREF. Requiere dibujo guardado del proyecto activo.
+    Tiempo en segundos indicado en KT1. No modifica IEC2.
+    Conserva assembled=True si falla numeración o actualización XREF.
+    """
+    return circuits.create_star_delta_circuit(x, y, scale, transition_seconds)
+
+
+@mcp.tool()
 def update_cross_references(coil_handle: str, child_handle: str) -> dict[str, Any]:
     """Actualizar referencias padre/hijo nativas en el dibujo del proyecto activo.
 

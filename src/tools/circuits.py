@@ -239,3 +239,148 @@ def create_reversing_circuit(x: float = 0, y: float = 0, scale: float = 1) -> di
                 conn.get_active_document().EndUndoMark()
             except Exception:
                 logging.getLogger(__name__).exception("Could not close reversing circuit undo group")
+
+
+def create_star_delta_circuit(x: float = 0, y: float = 0, scale: float = 1, transition_seconds: float = 5) -> dict:
+    """Compose maintained star/delta control with on-delay KT1 and cross NC interlocks.
+
+    transition_seconds labels the timer setting in seconds. Numbering/XREF
+    failures retain the assembled drawing for repair. IEC2 is read only.
+    """
+    created, components, segments, representatives = [], {}, [], []
+    wires, numbering, references = [], [], []
+    doc, undo_started, assembled = None, False, False
+    try:
+        x, y, scale = map(float, (x, y, scale))
+        if not all(map(math.isfinite, (x, y, scale))) or scale <= 0:
+            raise ValueError("Coordenadas finitas y escala positiva requeridas")
+        transition_seconds = float(transition_seconds)
+        if not math.isfinite(transition_seconds) or transition_seconds <= 0:
+            raise ValueError("Tiempo de transición finito y positivo requerido")
+        specs = []
+        def spec(role, symbol, dx, dy, tag, label, nc=False, coil=False, **extra):
+            attrs = {"TAG1" if coil or role in ("stop", "start") else "TAG2": tag,
+                     "DESC1": label, "TERM01": "A1" if coil else "11" if nc else "13",
+                     "TERM02": "A2" if coil else "12" if nc else "14", **extra}
+            specs.append((role, symbol, dx, dy, attrs))
+        spec("stop", "pulsador NC", 0, 0, "S0", "PARO", nc=True)
+        spec("start", "pulsador NA", 0, -60, "S1", "MARCHA")
+        spec("holding", "VMS21", 60, -60, "KM1", "MANTENIMIENTO")
+        for role, dx, tag, symbol, label in (
+                ("main_coil", 0, "KM1", "VMS1", "PRINCIPAL"),
+                ("timer_coil", 120, "KT1", "VTD1N", "TEMPORIZADOR"),
+                ("star_coil", 240, "KM2", "VMS1", "ESTRELLA"),
+                ("delta_coil", 360, "KM3", "VMS1", "TRIANGULO")):
+            extra = {"DESC2": f"{transition_seconds:g} s"} if tag == "KT1" else {}
+            spec(role, symbol, dx, -330, tag, label, coil=True, **extra)
+        spec("star_timer", "VTD22N", 240, -150, "KT1", "APERTURA TEMPORIZADA", nc=True)
+        spec("delta_timer", "VTD21N", 360, -150, "KT1", "CIERRE TEMPORIZADO")
+        spec("star_interlock", "VMS22", 240, -240, "KM3", "BLOQUEO TRIANGULO", nc=True)
+        spec("delta_interlock", "VMS22", 360, -240, "KM2", "BLOQUEO ESTRELLA", nc=True)
+        entries = [symbol_catalog.resolve(electrical.IEC2_LIBRARY, spec[1]) for spec in specs]
+        conn = electrical._get_conn()
+        if not conn.get_application().GetAcadState().IsQuiescent:
+            raise RuntimeError("AutoCAD está ocupado")
+        doc = conn.get_active_document()
+        for i in range(doc.ModelSpace.Count):
+            obj = doc.ModelSpace.Item(i)
+            if obj.ObjectName == "AcDbBlockReference":
+                attrs = get_block_attributes(obj)
+                if any(attrs.get(k, "").strip().casefold() in {"s0", "s1", "km1", "km2", "km3", "kt1"} for k in ("TAG1", "TAG2")):
+                    raise ValueError("Ya existen identificadores del circuito en el dibujo")
+        wire_type = ensure_wire_type(doc)
+        doc = conn.get_active_document()
+        doc.StartUndoMark()
+        undo_started = True
+        for spec, entry in zip(specs, entries):
+            role, symbol, dx, dy, attrs = spec
+            components[role] = insert_iec_component(doc, electrical.IEC2_LIBRARY, symbol,
+                x + dx * scale, y + dy * scale, scale, attributes=attrs,
+                entry=entry, created=created, require_vertical_terminals=True)
+        pairs = [("main_coil", "holding"), ("timer_coil", "star_timer"),
+                 ("timer_coil", "delta_timer"), ("star_coil", "delta_interlock"),
+                 ("delta_coil", "star_interlock")]
+        for parent, child in pairs:
+            associate_parent_child(doc, components[parent]["handle"], components[child]["handle"])
+        def point(dx, dy):
+            return [x + dx * scale, y + dy * scale, 0]
+        def wire(a, b, numbered=False):
+            if numbered:
+                representatives.append(len(segments))
+            segments.append((a, b))
+        supply, neutral = point(0, 30), point(360, -390)
+        def terminals(role):
+            return components[role]["terminals"]
+        wire(supply, terminals("stop")[0], True)
+        wire(terminals("stop")[1], point(0, -30), True)
+        wire(point(0, -30), terminals("start")[0])
+        wire(point(0, -30), point(60, -30))
+        wire(point(60, -30), terminals("holding")[0])
+        wire(terminals("start")[1], point(0, -90), True)
+        wire(terminals("holding")[1], point(60, -90))
+        # Split every bus at branch endpoints for native Electrical netlists.
+        for a, b in ((0, 60), (60, 120), (120, 240), (240, 360)):
+            wire(point(a, -90), point(b, -90))
+        for role, dx in (("main", 0), ("timer", 120), ("star", 240), ("delta", 360)):
+            top, bottom = terminals(role + "_coil")
+            if role in ("star", "delta"):
+                timed, interlock = terminals(role + "_timer"), terminals(role + "_interlock")
+                wire(point(dx, -90), timed[0])
+                wire(timed[1], interlock[0], True)
+                wire(interlock[1], top, True)
+            else:
+                wire(point(dx, -90), top)
+            wire(bottom, point(dx, -390))
+        for a, b in ((0, 120), (120, 240), (240, 360)):
+            wire(point(a, -390), point(b, -390), a == 0)
+        wires = create_electrical_wires(doc, segments, created=created, register_type=False)
+        doc.Regen(1)
+        doc.EndUndoMark()
+        undo_started = False
+        assembled = True
+        for index, representative in enumerate(representatives, 101):
+            try:
+                numbering.append(dict(number_wire(doc, wires[representative]["handle"], str(index)), success=True))
+            except Exception as exc:
+                numbering.append({"success": False, "wire_number": str(index),
+                                  "handle": wires[representative]["handle"], "error": str(exc)})
+        for parent, child in pairs:
+            try:
+                doc = conn.get_active_document()
+                references.append(update_cross_references(doc, components[parent]["handle"], components[child]["handle"]))
+            except Exception as exc:
+                references.append({"success": False, "status": "failed", "error": str(exc),
+                                   "parent_handle": components[parent]["handle"],
+                                   "child_handle": components[child]["handle"]})
+        doc = conn.get_active_document()
+        for component in components.values():
+            component["attributes"] = get_block_attributes(doc.HandleToObject(component["handle"]))
+        return {"success": all(r["success"] for r in numbering + references),
+                "assembled": True, "drawing": doc.Name, "components": components,
+                "wires": wires, "wire_type": wire_type, "wire_numbers": numbering,
+                "cross_references": references, "supply_terminals": [supply, neutral],
+                "transition_seconds": transition_seconds,
+                "topology": "STOP_NC -- (START_NO || KM1_NO) -- [KM1; KT1; KT1_NC -- KM3_NC -- KM2; KT1_NO -- KM2_NC -- KM3]"}
+
+    except Exception as exc:
+        remaining = []
+        if not assembled:
+            for entity in reversed(created):
+                try:
+                    entity.Delete()
+                except Exception:
+                    try:
+                        remaining.append(entity.Handle)
+                    except Exception:
+                        remaining.append("unknown")
+        result = {"success": False, "assembled": assembled, "error": str(exc), "remaining_handles": remaining}
+        if assembled:
+            result.update(components=components, wires=wires, wire_numbers=numbering,
+                          cross_references=references)
+        return result
+    finally:
+        if undo_started:
+            try:
+                conn.get_active_document().EndUndoMark()
+            except Exception:
+                logging.getLogger(__name__).exception("Could not close star/delta circuit undo group")

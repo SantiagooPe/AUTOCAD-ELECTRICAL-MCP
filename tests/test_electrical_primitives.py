@@ -79,7 +79,7 @@ class CircuitRegressionTests(unittest.TestCase):
 
         def insert(position, path, sx, sy, sz, rotation):
             role = len(entities)
-            attrs = {'TAG1': '', 'TAG2': '', 'DESC1': '', 'TERM01': '', 'TERM02': '', 'FAMILY': 'MS'}
+            attrs = {'TAG1': '', 'TAG2': '', 'DESC1': '', 'DESC2': '', 'TERM01': '', 'TERM02': '', 'FAMILY': 'MS'}
             block = MagicMock(Handle=str(role), Name=path)
             attributes = [SimpleNamespace(TagString=k, TextString=v, Invisible=False, Update=lambda: None)
                           for k, v in attrs.items()]
